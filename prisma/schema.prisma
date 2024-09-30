@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model Event {
+  id             String    @id @default(uuid())
+  name           String
+  host           String?
+  thumbnail      String    @default("")
+  headerImage    String?
+  description    String
+  ageRestriction Int
+  category       String
+  duration       Int
+  langauge       String
+  type           EventType
+  createdAt      DateTime  @default(now())
+
+  eventVenues EventVenue[]
+}
+
+model Venue {
+  id        String   @id @default(uuid())
+  name      String
+  city      String
+  address   String
+  capacity  Int
+  createdAt DateTime @default(now())
+
+  seatLayout  Json         @default("{}")
+  eventVenues EventVenue[]
+}
+
+model EventVenue {
+  id         String   @id @default(uuid())
+  eventId    String
+  venueId    String
+  date       DateTime @default(now())
+  showtime   DateTime
+  totalSeats Int
+
+  event Event @relation(fields: [eventId], references: [id])
+  venue Venue @relation(fields: [venueId], references: [id])
+
+  seats   Seat[]
+  tickets Ticket[]
+}
+
+model Ticket {
+  id           String @id @default(uuid())
+  eventVenueId String
+  seatNumber   String
+  price        Int
+
+  eventVenue EventVenue   @relation(fields: [eventVenueId], references: [id])
+  status     TicketStatus
+
+  createdAt DateTime @default(now())
+}
+
+model Seat {
+  id           String     @id @default(uuid())
+  eventVenueId String
+  row          String
+  seatNumber   String
+  status       SeatStatus
+  createdAt    DateTime   @default(now())
+
+  eventVenue EventVenue @relation(fields: [eventVenueId], references: [id])
+}
+
+enum SeatStatus {
+  AVAILABLE
+  RESERVED
+  BOOKED
+}
+
+enum TicketStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+}
+
+enum EventType {
+  MOVIE
+  SHOW
+  CONCERT
+  OTHER
+}
