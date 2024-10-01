@@ -1,26 +1,26 @@
 import { JWT_PASSWORD } from "../config";
 import redisClient from "../redis/redisClient";
-import transporterGmail from "./mailTransporter";
+import transporter from "./mailTransporter";
 import jwt from "jsonwebtoken";
+import { authenticator } from 'otplib';
 
-
-function generateOTP(){
-    return Math.floor(100000 + Math.random() * 900000).toString()
+async function generateAndStoreOTPSecret(email: string) {
+  const secret = authenticator.generateSecret();
+  const otp = authenticator.generate(secret);
+  await redisClient.setex(`otpSecret:${email}`, 600, secret);
+  return otp;
 }
 
 export async function sendVerificationOtpToEmail(email: string){
     try {
-        const otp = generateOTP();
-        await redisClient.setex(`emailVerificationOtp:${email}`, 600, otp);
-        
-        await transporterGmail.sendMail({
+        const otp = generateAndStoreOTPSecret(email);
+        await transporter.sendMail({
             from: process.env.EMAIL,
             to: email, 
             subject: 'Verify your email for StealShow', 
             text: `Your OTP for verification is: ${otp}`,
             html: `<p>Your OTP for verification is: <b>${otp}</b></p>`, 
         });
-        
         return { message: 'OTP sent successfully.' }
     } catch (error) {
         throw new Error('Failed to send OTP email.');
@@ -35,14 +35,14 @@ export async function sendPasswordResetEmail(email: string){
 
     await redisClient.setex(`passwordResetToken:${email}`, 600, RESET_TOKEN);
     try {
-        await transporterGmail.sendMail({
+        await transporter.sendMail({
             from: process.env.EMAIL,
             to: email,
             subject: 'Reset your password for StealShow',
             html: `<p>Click the link below to reset your password:</p>
                    <p><a href="${RESET_LINK}">Reset Password</a></p>`,
         });
-        return {message: 'Password reset email sent successfully.'}
+        return { message: 'Password reset email sent successfully.' };
     } catch (error) {
         throw new Error('Failed to send email.');
     }

@@ -13,6 +13,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-ses": "^3.658.1",
+    "@aws-sdk/credential-provider-node": "^3.658.1",
     "@prisma/client": "^5.19.1",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.3",
@@ -23,6 +25,7 @@
     "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.15",
+    "otplib": "^12.0.1",
     "prisma": "^5.19.1",
     "razorpay": "^2.9.4",
     "zod": "^3.23.8"

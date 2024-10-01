@@ -9,6 +9,7 @@ import { ChangePasswordSchema, SignInSchema, SignUpSchema } from "../types/index
 import { authMiddleware } from "../middleware";
 import { asyncHandler } from "../errorHandling/asyncHandler";
 import { sendPasswordResetEmail, sendVerificationOtpToEmail } from "../helper/sendOtp";
+import { authenticator } from "otplib";
 
 const router = Router();
 
@@ -139,41 +140,43 @@ router.post('/send-otp-verification-email', asyncHandler(async(req,res) => {
     return res.status(411).json({message: "Invalid Input"});
   }
 
-  const isEmailTaken = await prismaClient.user.findFirst({
-    where: {
-      email,
-    },
-  })
-
-  if(isEmailTaken){
-    return res.status(411).json({message: "Email already taken"});
+  try {
+    const response = await sendVerificationOtpToEmail(email);;
+    return res.status(200).json({ message: response.message });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Something went wrong. Unable to send email." });
   }
-  await sendVerificationOtpToEmail(email);
-
-  return res.status(200).json({message: "OTP sent successfully"});
-
 }))
 
 
 //Verify User Signup OTP 
-router.get("/verify-signup-otp", authMiddleware, asyncHandler(async (req, res) => {
-  const email = req.body.email;
-  const otp = req.body.otp;
-  if(!email){
-    return res.status(411).json({message: "Invalid Input"});
-  }
+router.get("/verify-signup-otp",asyncHandler(async (req, res) => {
+    const email = req.body.email;
+    const otp = req.body.otp;
+    if (!email || !otp) {
+      return res.status(411).json({ message: "Invalid Input" });
+    }
 
-  const cachedOtp = await redisClient.get(`emailVerificationOtp:${email}`);
-  if(!cachedOtp){
-    return res.status(411).json({message: "OTP has been expired . Send again!"});
-  }
+    const secret = await redisClient.get(`otpSecret:${email}`);
+    if (!secret) {
+      return res
+        .status(411)
+        .json({ message: "OTP has expired or is invalid. Send again!" });
+    }
 
-  if(parseInt(cachedOtp) !== parseInt(otp)){
-    return res.status(411).json({message: "Invalid OTP"});
-  }
+    // Validate the OTP
+    const isValid = authenticator.check(otp, secret);
+    if (!isValid) {
+      return res.status(411).json({ message: "Invalid OTP" });
+    }
+    await redisClient.del(`otpSecret:${email}`);
 
-  return res.status(200).json({message: "OTP Verified"});
-}));
+    return res.status(200).json({ message: "OTP Verified" });
+  })
+);
+
 
 //Forget password
 router.post('/forget-password' , asyncHandler(async(req, res) => {
@@ -192,9 +195,14 @@ router.post('/forget-password' , asyncHandler(async(req, res) => {
     return res.status(404).json({message: "User does not exists with this email"});
   }
 
-  await sendPasswordResetEmail(email);
-  
-  return res.status(200).json({message: "Email sent successfully"})
+  try {
+    const response = await sendPasswordResetEmail(email);
+    return res.status(200).json({ message: response.message });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Something went wrong. Unable to send email." });
+  }
 }));
 
 

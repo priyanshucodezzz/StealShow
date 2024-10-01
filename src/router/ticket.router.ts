@@ -15,11 +15,7 @@ router.post("/:eventId/:venueId" , asyncHandler( async (req, res) => {
     if(!SEAT_NUMBER){
         return res.status(400).json({message: "Please select seat to proceed!"});
     };
-
-    if(!eventId || !venueId){
-        return res.status(400).json({message: "Invalid Request"});
-    };
-
+    
     const eventVenue = await prismaClient.eventVenue.findFirst({
         where: {
             eventId: eventId, venueId: venueId
