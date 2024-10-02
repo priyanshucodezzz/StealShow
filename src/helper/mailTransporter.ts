@@ -1,8 +1,8 @@
 import nodemailer from "nodemailer";
 import * as aws from "@aws-sdk/client-ses";
 
-const accessKey= process.env.AWS_ACCESS_KEY || '';
-const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
+const accessKey= process.env.AWS_ACCESS_KEY;
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
 if (!accessKey || !secretAccessKey) {
   throw new Error("AWS credentials are not set in the environment variables.");

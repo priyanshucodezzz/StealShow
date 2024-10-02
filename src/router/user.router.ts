@@ -43,7 +43,7 @@ router.post("/signup", asyncHandler(async (req, res) => {
     },
   });
 
-  return res.json({
+  return res.status(200).json({
     message: "User signed up successfully!",
   });
 }));
@@ -112,7 +112,7 @@ router.get("/", authMiddleware, asyncHandler(async (req, res) => {
   });
 
   redisClient.set(`user:${id}`, JSON.stringify(user));
-  return res.json({user});
+  return res.status(200).json({user});
 }));
 
 //Check is email Unique
