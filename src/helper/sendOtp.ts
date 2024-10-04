@@ -4,7 +4,7 @@ import transporter from "./mailTransporter";
 import jwt from "jsonwebtoken";
 import { authenticator } from 'otplib';
 
-async function generateAndStoreOTPSecret(email: string) {
+export async function generateAndStoreOTPSecret(email: string) {
   const secret = authenticator.generateSecret();
   const otp = authenticator.generate(secret);
   await redisClient.setex(`otpSecret:${email}`, 600, secret);
@@ -13,7 +13,7 @@ async function generateAndStoreOTPSecret(email: string) {
 
 export async function sendVerificationOtpToEmail(email: string){
     try {
-        const otp = generateAndStoreOTPSecret(email);
+        const otp = await generateAndStoreOTPSecret(email);
         await transporter.sendMail({
             from: process.env.EMAIL,
             to: email, 

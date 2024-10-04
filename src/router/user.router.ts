@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { Request, Router } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { prismaClient } from "../db";
 import redisClient from "../redis/redisClient";
 
 import { JWT_PASSWORD } from "../config";
-import { ChangePasswordSchema, SignInSchema, SignUpSchema } from "../types/index";
+import { ChangePasswordSchema, EmailSchema, SignInSchema, SignUpSchema } from "../types/index";
 import { authMiddleware } from "../middleware";
 import { asyncHandler } from "../errorHandling/asyncHandler";
 import { sendPasswordResetEmail, sendVerificationOtpToEmail } from "../helper/sendOtp";
@@ -94,6 +94,11 @@ router.post("/signin", asyncHandler(async (req, res) => {
 router.get("/", authMiddleware, asyncHandler(async (req, res) => {
   // @ts-ignore
   const id = req?.id;
+
+  if(!id){
+    return res.status(401).json({message: "You are not authenticated!"});
+  }
+
   const cacheData = await redisClient.get(`user:${id}`);
   if(cacheData){
     const user = JSON.parse(cacheData);
@@ -106,17 +111,21 @@ router.get("/", authMiddleware, asyncHandler(async (req, res) => {
       id,
     },
     select: {
+      id: true,
       name: true,
       email: true,
     },
   });
+  if(!user){
+    return res.status(404).json({message: "User not found"});
+  }
 
   redisClient.set(`user:${id}`, JSON.stringify(user));
   return res.status(200).json({user});
 }));
 
 //Check is email Unique
-router.get("/check/email-unique", asyncHandler(async (req, res) => {
+router.get("/check-email-unique", asyncHandler(async (req, res) => {
   const email = req.query.email as string;
 
   const user = await prismaClient.user.findFirst({
@@ -124,25 +133,29 @@ router.get("/check/email-unique", asyncHandler(async (req, res) => {
       email,
     },
   });
-
-  if (user) {
-    return res.status(200).json({status: true , isUnique: 'Email is unique'});
-  }else{
-    return res.status(200).json({status: false , isUnique: 'Email already exists', });
+  
+  if(user){
+    return res.status(403).json({status: false, isUnique: "Email already exists" });
   }
+  return res.status(200).json({status: true , isUnique: "Email is unique"});
 }));
 
 
 //Send verification Email
 router.post('/send-otp-verification-email', asyncHandler(async(req,res) => {
   const email = req.body.email;
-  if(!email){
-    return res.status(411).json({message: "Invalid Input"});
-  }
+  const parsedEmail = EmailSchema.safeParse(email);
 
+  if(!parsedEmail.success){
+    return res.status(411).json({message: "Invalid Input" , errors: parsedEmail.error.errors});
+  }
   try {
-    const response = await sendVerificationOtpToEmail(email);;
-    return res.status(200).json({ message: response.message });
+    const response = await sendVerificationOtpToEmail(parsedEmail.data);
+    if(response.message == "OTP sent successfully."){
+      return res.status(200).json({ message: response.message });
+    }else {
+      return res.status(500).json({ message: "Failed to send OTP" });
+    }
   } catch (error) {
     return res
       .status(500)
@@ -152,26 +165,32 @@ router.post('/send-otp-verification-email', asyncHandler(async(req,res) => {
 
 
 //Verify User Signup OTP 
-router.get("/verify-signup-otp",asyncHandler(async (req, res) => {
-    const email = req.body.email;
+router.post("/verify-signup-otp",asyncHandler(async (req, res) => {
     const otp = req.body.otp;
-    if (!email || !otp) {
-      return res.status(411).json({ message: "Invalid Input" });
+    const email = req.body.email;
+    const parsedEmail = EmailSchema.safeParse(email);
+  
+    if(!parsedEmail.success){
+      return res.status(411).json({message: "Invalid Input"});
     }
 
-    const secret = await redisClient.get(`otpSecret:${email}`);
+    if (!otp) {
+      return res.status(411).json({ message: "OTP is required" });
+    }
+
+    const secret = await redisClient.get(`otpSecret:${parsedEmail.data}`);
     if (!secret) {
       return res
-        .status(411)
+        .status(403)
         .json({ message: "OTP has expired or is invalid. Send again!" });
     }
 
     // Validate the OTP
     const isValid = authenticator.check(otp, secret);
     if (!isValid) {
-      return res.status(411).json({ message: "Invalid OTP" });
+      return res.status(403).json({ message: "Invalid OTP" });
     }
-    await redisClient.del(`otpSecret:${email}`);
+    await redisClient.del(`otpSecret:${parsedEmail.data}`);
 
     return res.status(200).json({ message: "OTP Verified" });
   })
@@ -181,13 +200,15 @@ router.get("/verify-signup-otp",asyncHandler(async (req, res) => {
 //Forget password
 router.post('/forget-password' , asyncHandler(async(req, res) => {
   const email = req.body.email;
-  if(!email){
+  const parsedEmail = EmailSchema.safeParse(email);
+
+  if(!parsedEmail.success){
     return res.status(411).json({message: "Invalid Input"});
   }
 
   const user = await prismaClient.user.findFirst({
     where: {
-      email,
+      email : parsedEmail.data,
     },
   })
 
@@ -196,7 +217,7 @@ router.post('/forget-password' , asyncHandler(async(req, res) => {
   }
 
   try {
-    const response = await sendPasswordResetEmail(email);
+    const response = await sendPasswordResetEmail(parsedEmail.data);
     return res.status(200).json({ message: response.message });
   } catch (error) {
     return res

@@ -83,9 +83,11 @@ model Seat {
   row          String
   seatNumber   String
   status       SeatStatus
+  version      Int      @default(1)
   createdAt    DateTime   @default(now())
 
   eventVenue EventVenue @relation(fields: [eventVenueId], references: [id])
+  @@unique([eventVenueId, row, seatNumber])
 }
 
 enum SeatStatus {

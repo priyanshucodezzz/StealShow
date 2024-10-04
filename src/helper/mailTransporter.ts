@@ -1,7 +1,10 @@
 import nodemailer from "nodemailer";
 import * as aws from "@aws-sdk/client-ses";
+import dotenv from "dotenv";
 
-const accessKey= process.env.AWS_ACCESS_KEY;
+dotenv.config()
+
+const accessKey = process.env.AWS_ACCESS_KEY;
 const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
 if (!accessKey || !secretAccessKey) {
